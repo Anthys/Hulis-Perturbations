@@ -21,10 +21,29 @@ TABLE = {"CO2": 0.66, "CC":1, "CN2":0.89}
 
 atoms_perturbed = []
 
+visited = []
 
-def algorithme_theorie_des_graphs(A, B):
-    #yes
-    return FRAGMENTS
+def algorithme_parcours_de_graphs():
+    global visited
+    explor(0)
+    visit1 = visited[:]
+    visited=[]
+    for i in range(len(ATOMS)):
+        if ATOMS[i] not in visit1:
+            explor(i)
+            break
+    for i in ATOMS:
+        if i not in visited and i not in visit1:
+            print("MORE THAN TWO FRAGMENTS")
+            sys.exit(0)
+    # visited = visit1[:]
+
+def explor(x):
+    global visited
+    visited.append(ATOMS[x])
+    for j in range(len(HAMILT[x])):
+        if HAMILT[x][j]>0.02 and not ATOMS[j] in visited:
+            explor(j)
 
 def get_perturb(i, j):
     i, j = "".join([a for a in i if not a.isdigit()]), "".join([a for a in j if not a.isdigit()])
@@ -57,20 +76,25 @@ def find_orbitals():
 
     first_find = ""
     for j in range(len(ORBI_E)-1, -1, -1):
+        # Go through all orbitals, from the most instable to the most stable, to bet both Highest Occupied
         if ORBI_E[j] <= 0 and (not first_find) and ORBI_N[j]!=0:
             for i in range(len(ORBI_C[j])):
                 if abs(ORBI_C[i][j])>0.002:
                     first_find ="L1" if ATOMS[i] in FRAGMENTS["L1"]["A"] else "L2"
+                    # abs_max_col(j) is just a guess of the atom that will participate.
+                    # If it is right, it saves a lot of time, if not, it will be corrected later
                     FRAGMENTS[first_find]["HO"] = [j, abs_max_col(j)]
                     break
         elif first_find:
             for i in range(len(ORBI_C[j])):
                 if abs(ORBI_C[i][j]) > 0.002 and ATOMS[i] not in FRAGMENTS[first_find]["A"]:
+                    # Verify that this is an orbital from a different fragment than the first
                     FRAGMENTS["L1" if ATOMS[i] in FRAGMENTS["L1"]["A"] else "L2"]["HO"] = [j, abs_max_col(j)]
                     break
 
     first_find = ""
     for j in range(len(ORBI_E)):
+        # Go from most stable to less stable to get both Lowest Vacant
         if ORBI_E[j] >= 0 and (not first_find) and ORBI_N[j]==0:
             for i in range(len(ORBI_C[j])):
                 if abs(ORBI_C[i][j]) > 0.002:
@@ -90,26 +114,40 @@ TAB = [["L1", "BV", "L2", "HO"], ["L1", "HO", "L2", "BV"]]
 import sys
 
 def get_atoms_participating():
+
+    # Correct and get every atoms participating in the perturbations
+
     for i in range(len(TAB)):
         temp_tab = FRAGMENTS[TAB[i][0]][TAB[i][1]]
         temp_tab2 = FRAGMENTS[TAB[i][2]][TAB[i][3]]
         c_a1, c_a2 = ORBI_C[temp_tab[1]][temp_tab[0]], ORBI_C[temp_tab2[1]][temp_tab2[0]]
         if sign(c_a1) == sign(c_a2) and not temp_tab2[1] in atoms_perturbed and not temp_tab[1] in atoms_perturbed:
+            # if atoms already are correct
             atoms_perturbed.append(temp_tab[1])
             atoms_perturbed.append(temp_tab2[1])
         else:
-            print("BAD")
+            # if atoms aren't correct
+            print("CORRECTING")
             done = False
             tempdic = np.copy(np_orbi[:,temp_tab[0]])
             tempdic2 = np.copy(np_orbi[:,temp_tab2[0]])
             while not done:
+                # Awful loop correcting the atoms
                 done2 = False
                 while not done2:
+
+                    # Choose the maximum absolute value of coefficients in the orbitals of the two fragments
+                    # and suppose it can pair it with another atom from the other fragment.
                     max_c = tempdic[np.argmax([abs(val) for val in tempdic])] if abs(tempdic[np.argmax([abs(val) for val in tempdic])]) > abs(tempdic[np.argmax([abs(val) for val in tempdic])]) else tempdic[np.argmax([abs(val) for val in tempdic])]
+
+                    # Get corresponding informations
                     if max_c in tempdic:
                         max_i, max_L, float_nivel = list(tempdic).index(max_c), "L1", TAB[i][3]
                     else:
                         max_i, max_L, float_nivel = list(tempdic2).index(max_c), "L2", TAB[i][1]
+
+                    # Check for problems, and if both maximum atoms are incorrect, restart the loop by setting their
+                    # coefficients to 0.
                     if max_i in atoms_perturbed:
                         max_c = tempdic[np.argmax([abs(val) for val in tempdic])] if max_c == tempdic[np.argmax([abs(val) for val in tempdic])] else tempdic[np.argmax([abs(val) for val in tempdic])]
                         if max_c in tempdic:
@@ -121,16 +159,23 @@ def get_atoms_participating():
                     if max_i not in atoms_perturbed:
                         done2 = True
                     elif max_c==0:
+                        # In case every atom has been tested
                         print("ERROR")
                         sys.exit(0)
+
+                # One atom is now correct, research of its pair
                 (float_frag, float_nivel) = "L2" if max_L=="L1" else "L2", float_nivel
                 t_c=0
                 t_ci=0
                 for c_i in range(len(np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]])):
+                    # Check for > or < based on sign of max_c
+                    # Get the best pair available, that is in phase with the first atom
                     if (np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]][c_i] > t_c if sign(max_c)==1 else np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]][c_i] < t_c) and c_i not in atoms_perturbed:
                         t_c = np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]][c_i]
                         t_ci=c_i
                 done=True
+
+                # Fill the atoms_perturbated list in a certain order: L1 atoms then L2 ones
                 if max_L == "L1":
                     atoms_perturbed.append(max_i)
                     atoms_perturbed.append(t_ci)
@@ -159,6 +204,7 @@ def gener_pertubated_orbitals(O1, O2):
     return psi1, psi2, E1, E2
 
 def case_degenerate(Prtb, instr, energ):
+    # From Orbitales frontières, Nguyên Trong Anh, InterEditions
     E1, E2 = energ + Prtb, energ - Prtb
     psi1 = [0.707*i for i in (sum_orb(FRAGMENTS[instr[0]][instr[1]][0], FRAGMENTS[instr[2]][instr[3]][0]))]
     psi2 = [0.707*i for i in (sum_orb(FRAGMENTS[instr[0]][instr[1]][0], FRAGMENTS[instr[2]][instr[3]][0]), -1)]
@@ -171,6 +217,7 @@ def sum_orb(i1, i2, optional=1):
     return new_orb
 
 def case_non_degenerate(Prtb, instr):
+    # From Orbitales frontières, Nguyên Trong Anh, InterEditions
     N=1
 
     Emin = min(ORBI_E[FRAGMENTS[instr[0]][instr[1]][0]],ORBI_E[FRAGMENTS[instr[2]][instr[3]][0]])
@@ -216,19 +263,21 @@ np_orbi = np.array(ORBI_C)
 je_suis_sûr_de_moi = True
 
 if __name__ == "__main__":
-    #FRAGMENTS = algorithme_theorie_des_graphs(A, B)
     FRAGMENTS = {"L1": {"A":["4C", "3O2", "6C"], "BV":0, "HO":0}, "L2":{"A":["1C","2C", "5C"], "BV":0, "HO":0}}
-    ATOMS = ["1C","2C", "3O2", "4C", "5C", "6C"]
+    ATOMS = ["1C","2C", "3O1", "4C", "5C", "6C"]
     HAMILT = [[0, 1, 0, 0, 0, 0],
               [1, 0, 0, 0, 1, 0],
               [0, 0, 0, 1.06, 0, 0],
               [0, 0, 1.06, 0, 0, 1],
               [0, 1, 0, 0, 0, 0],
               [0, 0, 0, 1, 0, 0]]
+    algorithme_parcours_de_graphs()
+    FRAGMENTS["L2"]["A"]=visited
+    FRAGMENTS["L1"]["A"]= [i for i in ATOMS if i not in visited]
     ORBI_E = [-1.84,  -1.41,   -0.41,  0,     1.28,   1.41]
     ORBI_N = [2,       2,      2,     0,     0,       0]
 
-    ORBI_C = [[0,      0.5,    0,     0.71,  0,     -0.50],
+    ORBI_C = [[0,      0.5,    0,     -0.71,  0,     -0.50],
               [0,      0.71,   0,     0,     0,      0.71],
               [0.73,   0,      0.59,  0,    -0.35,   0],
               [0.60,   0,      0.31,  0,     0.74,   0],
@@ -239,16 +288,18 @@ if __name__ == "__main__":
     find_orbitals()
     print(FRAGMENTS)
     if je_suis_sûr_de_moi:
+        # Correcting atoms
         tempor = get_atoms_participating()
         FRAGMENTS["L1"]["BV"][1]=tempor[0]
         FRAGMENTS["L2"]["HO"][1]=tempor[1]
         FRAGMENTS["L1"]["HO"][1]=tempor[2]
         FRAGMENTS["L2"]["BV"][1]=tempor[3]
     print(FRAGMENTS)
+    # Calculations
     PSI, E = find_perturbations()
 
-    print(PSI)
-    print(E)
+    print("PSI", PSI)
+    print("E", E)
     
     #FRAGMENTS={"L1":{"ATOMS INDEX COMPOSING FRAGMENT", "BV":[INDEX OF BV IN ORBI_E, INDEX OF ATOM PARTICIPATING IN ATOMS}}
 
