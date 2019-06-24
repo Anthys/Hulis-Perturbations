@@ -117,6 +117,29 @@ def get_atoms_participating():
 
     # Correct and get every atoms participating in the perturbations
 
+    atoms_perturbed = []
+
+    # if system is 2 atoms encountering 2 atoms (which may be the only case the program can't solve every time)
+    if len(FRAGMENTS["L1"]["A"])==len(FRAGMENTS["L2"]["A"])==2:
+        temp_i_l1 = 0
+        temp_i_l2 = 0
+        for yes in range(4):
+            if ORBI_C[yes][FRAGMENTS["L1"]["BV"][0]]<0:
+                temp_i_l1 = yes
+                break
+        for yes2 in range(4):
+            if ORBI_C[yes][FRAGMENTS["L2"]["BV"][0]]>0:
+                temp_i_l2 = yes2
+                break
+        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L1"]["A"][0] if FRAGMENTS["L1"]["A"][0]!=temp_i_l1 else FRAGMENTS["L1"]["A"][1]))
+        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L1"]["A"][0] if FRAGMENTS["L1"]["A"][0]==temp_i_l1 else FRAGMENTS["L1"]["A"][1]))
+        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L2"]["A"][0] if FRAGMENTS["L2"]["A"][0]!=temp_i_l2 else FRAGMENTS["L2"]["A"][1]))
+        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L2"]["A"][0] if FRAGMENTS["L2"]["A"][0]==temp_i_l2 else FRAGMENTS["L2"]["A"][1]))
+        return atoms_perturbed
+
+
+
+
     for i in range(len(TAB)):
         temp_tab = FRAGMENTS[TAB[i][0]][TAB[i][1]]
         temp_tab2 = FRAGMENTS[TAB[i][2]][TAB[i][3]]
@@ -182,6 +205,10 @@ def get_atoms_participating():
                 else:
                     atoms_perturbed.append(t_ci)
                     atoms_perturbed.append(max_i)
+                if t_c == 0:
+                    # In case every atom has been tested
+                    print("ERROR")
+                    sys.exit(0)
                 print("On " + float_nivel + " " + float_frag + ", " + str(t_ci) + " -> " + str(max_i))
         print(atoms_perturbed, TAB[i])
     return atoms_perturbed
@@ -263,26 +290,22 @@ np_orbi = np.array(ORBI_C)
 je_suis_sûr_de_moi = True
 
 if __name__ == "__main__":
-    FRAGMENTS = {"L1": {"A":["4C", "3O2", "6C"], "BV":0, "HO":0}, "L2":{"A":["1C","2C", "5C"], "BV":0, "HO":0}}
-    ATOMS = ["1C","2C", "3O1", "4C", "5C", "6C"]
-    HAMILT = [[0, 1, 0, 0, 0, 0],
-              [1, 0, 0, 0, 1, 0],
-              [0, 0, 0, 1.06, 0, 0],
-              [0, 0, 1.06, 0, 0, 1],
-              [0, 1, 0, 0, 0, 0],
-              [0, 0, 0, 1, 0, 0]]
+    FRAGMENTS = {"L1": {"A":[], "BV":0, "HO":0}, "L2":{"A":[], "BV":0, "HO":0}}
+    ATOMS = ["1C","2C", "3C", "4C"]
+    HAMILT = [[0, 1, 0, 0],
+              [1, 0, 0, 0],
+              [0, 0, 0, 1],
+              [0, 0, 1, 0]]
     algorithme_parcours_de_graphs()
     FRAGMENTS["L2"]["A"]=visited
     FRAGMENTS["L1"]["A"]= [i for i in ATOMS if i not in visited]
-    ORBI_E = [-1.84,  -1.41,   -0.41,  0,     1.28,   1.41]
-    ORBI_N = [2,       2,      2,     0,     0,       0]
+    ORBI_E = [-1, -1, 1, 1]
+    ORBI_N = [2,       2,      0,       0]
 
-    ORBI_C = [[0,      0.5,    0,     -0.71,  0,     -0.50],
-              [0,      0.71,   0,     0,     0,      0.71],
-              [0.73,   0,      0.59,  0,    -0.35,   0],
-              [0.60,   0,      0.31,  0,     0.74,   0],
-              [0,      0.5,   -0.0,   0.71,  0,      0.5],
-              [0.33,   0,     -0.75,  0,    -0.58,   0]]
+    ORBI_C = [[0.71,   0,      0,     0.71],
+              [0.71,   0,      0,    -0.71],
+              [0,      0.71,   0.71,  0],
+              [0,      0.71,  -0.71,  0]]
     np_orbi = np.array(ORBI_C)
 
     find_orbitals()
@@ -300,6 +323,47 @@ if __name__ == "__main__":
 
     print("PSI", PSI)
     print("E", E)
-    
+
     #FRAGMENTS={"L1":{"ATOMS INDEX COMPOSING FRAGMENT", "BV":[INDEX OF BV IN ORBI_E, INDEX OF ATOM PARTICIPATING IN ATOMS}}
 
+sys.exit(0)
+
+FRAGMENTS = {"L1": {"A":["4C", "3O2", "6C"], "BV":0, "HO":0}, "L2":{"A":["1C","2C", "5C"], "BV":0, "HO":0}}
+ATOMS = ["1C","2C", "3O1", "4C", "5C", "6C"]
+HAMILT = [[0, 1, 0, 0, 0, 0],
+          [1, 0, 0, 0, 1, 0],
+          [0, 0, 0, 1.06, 0, 0],
+          [0, 0, 1.06, 0, 0, 1],
+          [0, 1, 0, 0, 0, 0],
+          [0, 0, 0, 1, 0, 0]]
+algorithme_parcours_de_graphs()
+FRAGMENTS["L2"]["A"]=visited
+FRAGMENTS["L1"]["A"]= [i for i in ATOMS if i not in visited]
+ORBI_E = [-1.84,  -1.41,   -0.41,  0,     1.28,   1.41]
+ORBI_N = [2,       2,      2,     0,     0,       0]
+
+ORBI_C = [[0,      0.5,    0,     -0.71,  0,     -0.50],
+          [0,      0.71,   0,     0,     0,      0.71],
+          [0.73,   0,      0.59,  0,    -0.35,   0],
+          [0.60,   0,      0.31,  0,     0.74,   0],
+          [0,      0.5,   -0.0,   0.71,  0,      0.5],
+          [0.33,   0,     -0.75,  0,    -0.58,   0]]
+
+
+
+FRAGMENTS = {"L1": {"A":[], "BV":0, "HO":0}, "L2":{"A":[], "BV":0, "HO":0}}
+ATOMS = ["1C","2C", "3C", "4C"]
+HAMILT = [[0, 1, 0, 0],
+          [1, 0, 0, 0],
+          [0, 0, 0, 1],
+          [0, 0, 1, 0]]
+algorithme_parcours_de_graphs()
+FRAGMENTS["L2"]["A"]=visited
+FRAGMENTS["L1"]["A"]= [i for i in ATOMS if i not in visited]
+ORBI_E = [-1, -1, 1, 1]
+ORBI_N = [2,       2,      0,       0]
+
+ORBI_C = [[0.71,   0,      0,     0.71],
+          [0.71,   0,      0,    -0.71],
+          [0,      0.71,   0.71,  0],
+          [0,      0.71,  -0.71,  0]]
