@@ -121,10 +121,11 @@ def find_orbitals():
     global FRAGMENTS
 
     first_find = ""
+    sec = False
     for j in range(len(ORBI_E)-1, -1, -1):
         # Go through all orbitals, from the most instable to the most stable, to bet both Highest Occupied
         if ORBI_E[j] <= 0 and (not first_find) and ORBI_N[j]!=0:
-            for i in range(len(ORBI_C[j])):
+            for i in range(len(ORBI_C)):
                 if abs(ORBI_C[i][j])>0.002:
                     first_find ="L1" if ATOMS[i] in FRAGMENTS["L1"]["A"] else "L2"
                     # abs_max_col(j) is just a guess of the atom that will participate.
@@ -132,27 +133,34 @@ def find_orbitals():
                     FRAGMENTS[first_find]["HO"] = [j, abs_max_col(j)]
                     break
         elif first_find:
-            for i in range(len(ORBI_C[j])):
+            for i in range(len(ORBI_C)):
                 if abs(ORBI_C[i][j]) > 0.002 and ATOMS[i] not in FRAGMENTS[first_find]["A"]:
                     # Verify that this is an orbital from a different fragment than the first
                     FRAGMENTS["L1" if ATOMS[i] in FRAGMENTS["L1"]["A"] else "L2"]["HO"] = [j, abs_max_col(j)]
+                    sec = True
                     break
+        if sec:
+            break
 
     first_find = ""
+    sec = False
     for j in range(len(ORBI_E)):
         # Go from most stable to less stable to get both Lowest Vacant
         if ORBI_E[j] >= 0 and (not first_find) and ORBI_N[j]==0:
-            for i in range(len(ORBI_C[j])):
+            for i in range(len(ORBI_C)):
                 if abs(ORBI_C[i][j]) > 0.002:
                     first_find = "L1" if ATOMS[i] in FRAGMENTS["L1"]["A"] else "L2"
                     FRAGMENTS[first_find]["BV"] = [j, abs_max_col(j)]
                     print(first_find, j)
                     break
         elif first_find:
-            for i in range(len(ORBI_C[j])):
+            for i in range(len(ORBI_C)):
                 if abs(ORBI_C[i][j]) > 0.002 and ATOMS[i] not in FRAGMENTS[first_find]["A"]:
                     FRAGMENTS["L1" if ATOMS[i] in FRAGMENTS["L1"]["A"] else "L2"]["BV"] = [j, abs_max_col(j)]
+                    sec=True
                     break
+        if sec:
+            break
 
 
 TAB = [["L1", "BV", "L2", "HO"], ["L1", "HO", "L2", "BV"]]
@@ -205,6 +213,7 @@ def get_atoms_participating():
                 # Awful loop correcting the atoms
                 done2 = False
                 while not done2:
+                    print("YES", tempdic)
 
                     # Choose the maximum absolute value of coefficients in the orbitals of the two fragments
                     # and suppose it can pair it with another atom from the other fragment.
@@ -216,47 +225,55 @@ def get_atoms_participating():
                     else:
                         max_i, max_L, float_nivel = list(tempdic2).index(max_c), "L2", TAB[i][1]
 
-                    # Check for problems, and if both maximum atoms are incorrect, restart the loop by setting their
-                    # coefficients to 0.
+                    # Check for problems, and if both maximum atoms are incorrect, set their coefficients to 0.
                     if max_i in atoms_perturbed:
-                        max_c = tempdic[np.argmax([abs(val) for val in tempdic])] if max_c == tempdic[np.argmax([abs(val) for val in tempdic])] else tempdic[np.argmax([abs(val) for val in tempdic])]
+                        #max_c = tempdic[np.argmax([abs(val) for val in tempdic])] if max_c == tempdic2[np.argmax([abs(val) for val in tempdic2])] else tempdic2[np.argmax([abs(val) for val in tempdic2])]
                         if max_c in tempdic:
                             tempdic[max_i] = 0
-                            max_i, max_L, float_nivel = list(tempdic).index(max_c), "L1", TAB[i][3]
+                            #max_i, max_L, float_nivel = list(tempdic).index(max_c), "L1", TAB[i][3]
                         else:
                             tempdic2[max_i] = 0
-                            max_i, max_L, float_nivel = list(tempdic2).index(max_c), "L2", TAB[i][1]
+                            #max_i, max_L, float_nivel = list(tempdic2).index(max_c), "L2", TAB[i][1]
                     if max_i not in atoms_perturbed:
                         done2 = True
                     elif max_c==0:
-                        # In case every atom has been tested
-                        print("ERROR")
+                        # In case all atoms were tested, sys_exit
+                        print("ERROR-1 FIRST IMPOSSIBLE")
                         sys.exit(0)
+                    else:
+                        # In case the top atom isn't right, restart the loop
+                        print("ERROR-1 FIRST INADEQUATE")
 
                 # One atom is now correct, research of its pair
                 (float_frag, float_nivel) = "L2" if max_L=="L1" else "L2", float_nivel
                 t_c=0
                 t_ci=0
+                print(float_frag, float_nivel)
+                print(max_c)
+                print("YESYES", np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]])
                 for c_i in range(len(np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]])):
                     # Check for > or < based on sign of max_c
                     # Get the best pair available, that is in phase with the first atom
                     if (np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]][c_i] > t_c if sign(max_c)==1 else np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]][c_i] < t_c) and c_i not in atoms_perturbed:
                         t_c = np_orbi[:,FRAGMENTS[float_frag][float_nivel][0]][c_i]
                         t_ci=c_i
-                done=True
 
-                # Fill the atoms_perturbated list in a certain order: L1 atoms then L2 ones
-                if max_L == "L1":
+                # Fill the atoms_perturbed list in a certain order: L1 atoms then L2 ones
+                if t_c == 0:
+                    # In case every second atom has been tested
+                    print("ERROR-2 SECOND IMPOSSIBLE")
+                    #sys.exit(0)
+                    print(max_i)
+                    tempdic[max_i]=0
+                elif max_L == "L1":
+                    done = True
                     atoms_perturbed.append(max_i)
                     atoms_perturbed.append(t_ci)
                 else:
+                    done = True
                     atoms_perturbed.append(t_ci)
                     atoms_perturbed.append(max_i)
-                if t_c == 0:
-                    # In case every atom has been tested
-                    print("ERROR")
-                    sys.exit(0)
-                print("On " + float_nivel + " " + float_frag + ", " + str(t_ci) + " -> " + str(max_i))
+            print("On " + float_nivel + " " + float_frag + ", " + str(t_ci) + " -> " + str(max_i))
         print(atoms_perturbed, TAB[i])
     return atoms_perturbed
 
@@ -354,18 +371,28 @@ if __name__ == "__main__":
     HAMILT, ORBI_E, ORBI_N, ORBI_C = json.loads(a["HAMILT"]), json.loads(a["ORBI_E"]), json.loads(a["ORBI_N"]), json.loads(a["ORBI_C"])
 
     for i in range(len(ORBI_E)):
+        if abs(ORBI_E[i])<0.02:
+            ORBI_E[i]=0
         ORBI_E[i]=-ORBI_E[i]
 
     for i in range(len(HAMILT)):
         HAMILT[i][i]=0
 
-    print(ORBI_C)
+    for i in range(len(ORBI_C)):
+        for j in range(len(ORBI_C[i])):
+            if abs(ORBI_C[i][j])<0.05:
+                ORBI_C[i][j]=0
+
+    print("--")
+    print(len(HAMILT), len(ORBI_C), len(ORBI_N), len(ORBI_E))
+    for i in ORBI_C:
+        print(i)
 
     if "ATOMS" in a:
         ATOMS = json.loads(a["ATOMS"])
 
     FRAGMENTS = {"L1": {"A": [], "BV": 0, "HO": 0}, "L2": {"A": [], "BV": 0, "HO": 0}}
-    ATOMS = ["1O1", "2C", "3N1", "4C"]
+    ATOMS = ["1C", "2C", "3C", "4C", "5O1", "6C", "7C", "8C", "9C"]
     algorithme_parcours_de_graphs()
     FRAGMENTS["L2"]["A"] = visited
     FRAGMENTS["L1"]["A"] = [i for i in ATOMS if i not in visited]
@@ -383,6 +410,10 @@ if __name__ == "__main__":
     print(FRAGMENTS)
     # Calculations
     PSI, E = find_perturbations()
+    print('----')
+    print("PSI", PSI)
+    print("E", E)
+    PSI, E = json.dumps(PSI), json.dumps(E)
     print('----')
     print("PSI", PSI)
     print("E", E)
