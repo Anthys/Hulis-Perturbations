@@ -17,11 +17,54 @@ O1 = "Orbi1, max E"
 
 O2 = "Orbi2, min E"
 
-TABLE = {"CO2": 0.66, "CC":1, "CN2":0.89}
+
+#ALPHABETICAL ORDER FOR ATOM PAIRS
+TABLE = {"CO2": 0.66, "CC":1, "CN2":0.89, "CN1":1.02, "CO1":1.06}
 
 atoms_perturbed = []
 
 visited = []
+
+import socket, select, string, sys, time
+
+# main function
+def telnetmain():
+
+    host = "127.0.0.1"
+    port = 2345
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2)
+
+    # connect to remote host
+    try:
+        s.connect((host, port))
+    except:
+        print('Unable to connect')
+        sys.exit()
+
+    print('Connected to remote host')
+
+    DICO = ["HAMILT", "ORBI_E", "ORBI_N", "ORBI_C"]
+    FINAL= {}
+    indx = 0
+    for i in ["HAMD", "ENED", "OCCD", "ORBD"]:
+        msg = i
+        s.send(msg.encode())
+        time.sleep(0.2)
+        data = ""
+        socket_list = [sys.stdin, s]
+        # Get the list sockets which are readable
+        read_sockets, write_sockets, error_sockets = select.select(socket_list, [], [])
+        for sock in read_sockets:
+            data += s.recv(4096).decode()
+            FINAL[DICO[indx]] = data.replace("EOF", "")
+        indx+=1
+
+    for i in FINAL:
+        print(i, FINAL[i])
+
+    return FINAL
 
 def algorithme_parcours_de_graphs():
     global visited
@@ -32,6 +75,9 @@ def algorithme_parcours_de_graphs():
         if ATOMS[i] not in visit1:
             explor(i)
             break
+    if not visited:
+        print("ONLY ONE FRAGMENT")
+        sys.exit(0)
     for i in ATOMS:
         if i not in visited and i not in visit1:
             print("MORE THAN TWO FRAGMENTS")
@@ -128,13 +174,14 @@ def get_atoms_participating():
                 temp_i_l1 = yes
                 break
         for yes2 in range(4):
-            if ORBI_C[yes][FRAGMENTS["L2"]["BV"][0]]>0:
+            if ORBI_C[yes2][FRAGMENTS["L2"]["BV"][0]]<0:
                 temp_i_l2 = yes2
                 break
-        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L1"]["A"][0] if FRAGMENTS["L1"]["A"][0]!=temp_i_l1 else FRAGMENTS["L1"]["A"][1]))
-        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L1"]["A"][0] if FRAGMENTS["L1"]["A"][0]==temp_i_l1 else FRAGMENTS["L1"]["A"][1]))
-        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L2"]["A"][0] if FRAGMENTS["L2"]["A"][0]!=temp_i_l2 else FRAGMENTS["L2"]["A"][1]))
-        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L2"]["A"][0] if FRAGMENTS["L2"]["A"][0]==temp_i_l2 else FRAGMENTS["L2"]["A"][1]))
+        print(temp_i_l1, temp_i_l2)
+        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L1"]["A"][0] if FRAGMENTS["L1"]["A"][0]!=ATOMS[temp_i_l1] else FRAGMENTS["L1"]["A"][1]))
+        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L2"]["A"][0] if FRAGMENTS["L2"]["A"][0]==ATOMS[temp_i_l2] else FRAGMENTS["L2"]["A"][1]))
+        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L1"]["A"][0] if FRAGMENTS["L1"]["A"][0]==ATOMS[temp_i_l1] else FRAGMENTS["L1"]["A"][1]))
+        atoms_perturbed.append(ATOMS.index(FRAGMENTS["L2"]["A"][0] if FRAGMENTS["L2"]["A"][0]!=ATOMS[temp_i_l2] else FRAGMENTS["L2"]["A"][1]))
         return atoms_perturbed
 
 
@@ -268,11 +315,18 @@ P = [0, 0]
 PSI = [[],[]]
 E = [0, 0]
 
+TAB = [["L1", "BV", "L2", "HO"], ["L1", "HO", "L2", "BV"]]
+
 def find_perturbations():
     for i in range(len(TAB)):
         t_str = sorted([r_atom(ATOMS[FRAGMENTS[TAB[i][0]][TAB[i][1]][1]]), r_atom(ATOMS[FRAGMENTS[TAB[i][2]][TAB[i][3]][1]])])
         t_str = "".join([i for i in t_str])
-        P[i] = TABLE[t_str]
+        try:
+            P[i] = TABLE[t_str]
+        except Exception as e:
+            print(e)
+            print("ERROR, BINDING OF ATOMS MISSING IN TABLE")
+            sys.exit(0)
 
         if abs(ORBI_E[FRAGMENTS[TAB[i][0]][TAB[i][1]][0]]-ORBI_E[FRAGMENTS[TAB[i][2]][TAB[i][3]][0]])<0.002:
             PSI[i], E[i] = case_degenerate(P[i], TAB[i], ORBI_E[FRAGMENTS[TAB[i][0]][TAB[i][1]][0]])
@@ -289,23 +343,32 @@ np_orbi = np.array(ORBI_C)
 
 je_suis_sûr_de_moi = True
 
-if __name__ == "__main__":
-    FRAGMENTS = {"L1": {"A":[], "BV":0, "HO":0}, "L2":{"A":[], "BV":0, "HO":0}}
-    ATOMS = ["1C","2C", "3C", "4C"]
-    HAMILT = [[0, 1, 0, 0],
-              [1, 0, 0, 0],
-              [0, 0, 0, 1],
-              [0, 0, 1, 0]]
-    algorithme_parcours_de_graphs()
-    FRAGMENTS["L2"]["A"]=visited
-    FRAGMENTS["L1"]["A"]= [i for i in ATOMS if i not in visited]
-    ORBI_E = [-1, -1, 1, 1]
-    ORBI_N = [2,       2,      0,       0]
+import json
 
-    ORBI_C = [[0.71,   0,      0,     0.71],
-              [0.71,   0,      0,    -0.71],
-              [0,      0.71,   0.71,  0],
-              [0,      0.71,  -0.71,  0]]
+if __name__ == "__main__":
+
+    try:
+        a = telnetmain()
+    except Exception as e:
+        print(e)
+    HAMILT, ORBI_E, ORBI_N, ORBI_C = json.loads(a["HAMILT"]), json.loads(a["ORBI_E"]), json.loads(a["ORBI_N"]), json.loads(a["ORBI_C"])
+
+    for i in range(len(ORBI_E)):
+        ORBI_E[i]=-ORBI_E[i]
+
+    for i in range(len(HAMILT)):
+        HAMILT[i][i]=0
+
+    print(ORBI_C)
+
+    if "ATOMS" in a:
+        ATOMS = json.loads(a["ATOMS"])
+
+    FRAGMENTS = {"L1": {"A": [], "BV": 0, "HO": 0}, "L2": {"A": [], "BV": 0, "HO": 0}}
+    ATOMS = ["1O1", "2C", "3N1", "4C"]
+    algorithme_parcours_de_graphs()
+    FRAGMENTS["L2"]["A"] = visited
+    FRAGMENTS["L1"]["A"] = [i for i in ATOMS if i not in visited]
     np_orbi = np.array(ORBI_C)
 
     find_orbitals()
@@ -320,7 +383,7 @@ if __name__ == "__main__":
     print(FRAGMENTS)
     # Calculations
     PSI, E = find_perturbations()
-
+    print('----')
     print("PSI", PSI)
     print("E", E)
 
