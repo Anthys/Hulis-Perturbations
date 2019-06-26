@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib as plt
+import socket, select, string, sys, time
 
 A = "Matrice des hamiltoniens (liaisons ou non)"
 
@@ -25,15 +26,16 @@ atoms_perturbed = []
 
 visited = []
 
-import socket, select, string, sys, time
+s = s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # main function
 def telnetmain():
 
+    global s
+
     host = "127.0.0.1"
     port = 2345
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(2)
 
     # connect to remote host
@@ -45,10 +47,10 @@ def telnetmain():
 
     print('Connected to remote host')
 
-    DICO = ["HAMILT", "ORBI_E", "ORBI_N", "ORBI_C"]
+    DICO = ["HAMILT", "ORBI_E", "ORBI_N", "ORBI_C", "ATOMS"]
     FINAL= {}
     indx = 0
-    for i in ["HAMD", "ENED", "OCCD", "ORBD"]:
+    for i in ["HAMD", "ENED", "OCCD", "ORBD", "ATOM"]:
         msg = i
         s.send(msg.encode())
         time.sleep(0.2)
@@ -296,6 +298,7 @@ def gener_pertubated_orbitals(O1, O2):
 
 def case_degenerate(Prtb, instr, energ):
     # From Orbitales frontières, Nguyên Trong Anh, InterEditions
+    energ = -energ
     E1, E2 = energ + Prtb, energ - Prtb
     psi1 = [0.707*i for i in (sum_orb(FRAGMENTS[instr[0]][instr[1]][0], FRAGMENTS[instr[2]][instr[3]][0]))]
     psi2 = [0.707*i for i in (sum_orb(FRAGMENTS[instr[0]][instr[1]][0], FRAGMENTS[instr[2]][instr[3]][0]), -1)]
@@ -313,6 +316,8 @@ def case_non_degenerate(Prtb, instr):
 
     Emin = min(ORBI_E[FRAGMENTS[instr[0]][instr[1]][0]],ORBI_E[FRAGMENTS[instr[2]][instr[3]][0]])
     Emax = max(ORBI_E[FRAGMENTS[instr[0]][instr[1]][0]],ORBI_E[FRAGMENTS[instr[2]][instr[3]][0]])
+
+    Emin, Emax = -Emin, -Emax
 
     E1, E2 = Emin + Prtb**2/(Emin-Emax), Emax + Prtb**2/(Emax-Emin)
 
@@ -383,16 +388,19 @@ if __name__ == "__main__":
             if abs(ORBI_C[i][j])<0.05:
                 ORBI_C[i][j]=0
 
+    if "ATOMS" in a:
+        ATOMS = json.loads(a["ATOMS"])
+        for i in range(len(ATOMS)):
+            ATOMS[i] = str(i+1) + ATOMS[i]
+
     print("--")
     print(len(HAMILT), len(ORBI_C), len(ORBI_N), len(ORBI_E))
+    print("ATOMS", ATOMS)
     for i in ORBI_C:
         print(i)
 
-    if "ATOMS" in a:
-        ATOMS = json.loads(a["ATOMS"])
-
     FRAGMENTS = {"L1": {"A": [], "BV": 0, "HO": 0}, "L2": {"A": [], "BV": 0, "HO": 0}}
-    ATOMS = ["1C", "2C", "3C", "4C", "5O1", "6C", "7C", "8C", "9C"]
+    #ATOMS = ["1C", "2C", "3C", "4C", "5O1"]
     algorithme_parcours_de_graphs()
     FRAGMENTS["L2"]["A"] = visited
     FRAGMENTS["L1"]["A"] = [i for i in ATOMS if i not in visited]
@@ -413,14 +421,39 @@ if __name__ == "__main__":
     print('----')
     print("PSI", PSI)
     print("E", E)
-    PSI, E = json.dumps(PSI), json.dumps(E)
+    #PSI, E = json.dumps(PSI), json.dumps(E)
     print('----')
-    print("PSI", PSI)
-    print("E", E)
+    print("RSORBITALS", PSI)
+    print("RSENERGIES", E)
 
+    # PSI = [{"ATOMS":[{"ORB":2, "ATOM":"C2"}], "PRTRB_ORBS":[[[0,0,0,0],[0,0,0,0]], []], "PRTB_E":[[],[]]}]
+
+    fintab = ["BV", "HO"]
+    output = [0, 0]
+    for i in range(2):
+        output[i]= {"ATOMS": [{"ORB": FRAGMENTS["L1"][fintab[i]][0], "ATOM":ATOMS[FRAGMENTS["L1"][fintab[i]][1]]},
+                              {"ORB": FRAGMENTS["L2"][fintab[(i+1)%2]][0], "ATOM":ATOMS[FRAGMENTS["L2"][fintab[(i+1)%2]][1]]}],
+                    "PRTRB_ORBS": PSI[i],
+                    "PRTRB_E": E[i]}
+    print(output)
+
+    output = json.dumps(output)
+    print(len(output))
+
+    msg = "RSPERTURBATION"
+    s.send(msg.encode())
+    s.send(output.encode())
+    time.sleep(0.2)
+    msg = "HOUR"
+    s.send(msg.encode())
+    time.sleep(0.2)
+    s.send("CLOSE".encode())
     #FRAGMENTS={"L1":{"ATOMS INDEX COMPOSING FRAGMENT", "BV":[INDEX OF BV IN ORBI_E, INDEX OF ATOM PARTICIPATING IN ATOMS}}
 
 sys.exit(0)
+
+
+TAB = [["L1", "BV", "L2", "HO"], ["L1", "HO", "L2", "BV"]]
 
 FRAGMENTS = {"L1": {"A":["4C", "3O2", "6C"], "BV":0, "HO":0}, "L2":{"A":["1C","2C", "5C"], "BV":0, "HO":0}}
 ATOMS = ["1C","2C", "3O1", "4C", "5C", "6C"]
