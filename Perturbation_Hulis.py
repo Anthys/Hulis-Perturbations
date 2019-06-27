@@ -79,12 +79,16 @@ def algorithme_parcours_de_graphs():
             break
     if not visited:
         print("ONLY ONE FRAGMENT")
-        sys.exit(0)
+        clean_exit()
     for i in ATOMS:
         if i not in visited and i not in visit1:
             print("MORE THAN TWO FRAGMENTS")
-            sys.exit(0)
+            clean_exit()
     # visited = visit1[:]
+
+def clean_exit():
+    s.send("CLOSE".encode())
+    sys.exit(0)
 
 def explor(x):
     global visited
@@ -431,8 +435,8 @@ if __name__ == "__main__":
     fintab = ["BV", "HO"]
     output = [0, 0]
     for i in range(2):
-        output[i]= {"ATOMS": [{"ORB": FRAGMENTS["L1"][fintab[i]][0], "ATOM":ATOMS[FRAGMENTS["L1"][fintab[i]][1]]},
-                              {"ORB": FRAGMENTS["L2"][fintab[(i+1)%2]][0], "ATOM":ATOMS[FRAGMENTS["L2"][fintab[(i+1)%2]][1]]}],
+        output[i]= {"ATOMS": [{"ORB_INDX": FRAGMENTS["L1"][fintab[i]][0], "ATOM":ATOMS[FRAGMENTS["L1"][fintab[i]][1]]},
+                              {"ORB_INDX": FRAGMENTS["L2"][fintab[(i+1)%2]][0], "ATOM":ATOMS[FRAGMENTS["L2"][fintab[(i+1)%2]][1]]}],
                     "PRTRB_ORBS": PSI[i],
                     "PRTRB_E": E[i]}
     print(output)
