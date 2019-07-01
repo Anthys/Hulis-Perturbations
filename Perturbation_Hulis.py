@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib as plt
-import socket, select, string, sys, time
+import socket, select, string, sys, time, math
 
 A = "Matrice des hamiltoniens (liaisons ou non)"
 
@@ -102,26 +102,6 @@ def get_perturb(i, j):
     lis = sorted([i, j])
     str_fin = ''.join([i for i in lis])
     return TABLE[str_fin]
-
-def gener_matrice_perturbation(P):
-    for i in FRAGMENTS["L1"]:
-        for j in FRAGMENTS["L2"]:
-            P[LA.index(i)][LA.index(j)] = get_perturb(i, j)
-        for j in FRAGMENTS["L1"]:
-            if A[LA.index(i)][LA.index(j)]>0.001 or i==j:
-                P[LA.index(i)][LA.index(j)] = 0
-            else:
-                P[LA.index(i)][LA.index(j)] = get_perturb(i, j)
-    for i in FRAGMENTS["L2"]:
-        for j in FRAGMENTS["L2"]:
-            if A[LA.index(i)][LA.index(j)] > 0.001 or i==j:
-                P[LA.index(i)][LA.index(j)] = 0
-            else:
-                P[LA.index(i)][LA.index(j)] = get_perturb(i, j)
-    for i in range(len(P)):
-        for j in range(i+1, len(P)):
-            P[j][i] = P[i][j]
-    return P
 
 def find_orbitals():
     global FRAGMENTS
@@ -292,13 +272,10 @@ def sign(numb):
 def abs_max_col(col):
     return np.argmax(np.array([abs(i) for i in np_orbi[:, col]]))
 
-def gener_pertubated_orbitals(O1, O2):
-    if B_E[O1[0]]-B_E[O2[0]] < 0.001:
-        psi1, psi2, E1, E2 = case_degenerate()
-    else:
-        psi1, psi2, E1, E2 = case_degenerate()
-
-    return psi1, psi2, E1, E2
+def normalise(psi):
+    squared=sum([i**2 for i in psi])
+    squared = math.sqrt(1/squared)
+    return [i*squared for i in psi]
 
 def case_degenerate(Prtb, instr, energ):
     # From Orbitales frontières, Nguyên Trong Anh, InterEditions
@@ -328,7 +305,7 @@ def case_non_degenerate(Prtb, instr):
     psi1 = [N*i for i in (sum_orb(FRAGMENTS[instr[0]][instr[1]][0], FRAGMENTS[instr[2]][instr[3]][0], Prtb/(Emin-Emax)))]
     psi2 = [N*i for i in (sum_orb(FRAGMENTS[instr[2]][instr[3]][0], FRAGMENTS[instr[0]][instr[1]][0], Prtb/(Emax-Emin)))]
 
-    return [psi1, psi2], [E1,E2]
+    return [normalise(psi1), normalise(psi2)], [E1,E2]
 
 
 def r_atom(atom):
